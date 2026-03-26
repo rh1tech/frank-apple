@@ -6,8 +6,8 @@ Apple IIe Emulator for RP2040/RP2350 (Raspberry Pi Pico, Pico 2 or similar) with
 
 This firmware is designed for the following RP2350-based boards with integrated HDMI, SD card and PS/2 or USB HID:
 
-- **[Murmulator](https://murmulator.ru)** — A compact retro-computing platform based on RP Pico / Pico 2, designed for emulators and classic games.
 - **[FRANK](https://rh1.tech/projects/frank?area=about)** — A versatile development board based on RP Pico 2, HDMI output, and extensive I/O options.
+- **[Murmulator](https://murmulator.ru)** — A compact retro-computing platform based on RP Pico / Pico 2, designed for emulators and classic games.
 
 Both boards provide all necessary peripherals out of the box—no additional wiring required.
 
