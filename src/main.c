@@ -503,9 +503,9 @@ int main() {
     MII_DEBUG_PRINTF("\n\n");
     MII_DEBUG_PRINTF("=================================\n");
 #if PICO_RP2040
-    MII_DEBUG_PRINTF("  MurmApple - Apple IIe on RP2040\n");
+    MII_DEBUG_PRINTF("  FRANK Apple - Apple IIe on RP2040\n");
 #else
-    MII_DEBUG_PRINTF("  MurmApple - Apple IIe on RP2350\n");
+    MII_DEBUG_PRINTF("  FRANK Apple - Apple IIe on RP2350\n");
 #endif
     MII_DEBUG_PRINTF("=================================\n");
     MII_DEBUG_PRINTF("System Clock: %lu MHz\n", clock_get_hz(clk_sys) / 1000000);
@@ -565,7 +565,7 @@ int main() {
     board_num_early = 2;
 #endif
     mii_startscreen_info_t screen_info_early = {
-        .title = "MurmApple",
+        .title = "FRANK Apple",
         .subtitle = "Apple IIe Emulator",
         .version = "v1.00",
         .cpu_mhz = CPU_CLOCK_MHZ,
@@ -713,7 +713,7 @@ int main() {
     uint32_t bs = butter_psram_size();
 #endif
     mii_startscreen_info_t screen_info = {
-        .title = "MurmApple",
+        .title = "FRANK Apple",
         .subtitle = "Apple IIe Emulator",
         .version = "v1.00",
         .cpu_mhz = CPU_CLOCK_MHZ,

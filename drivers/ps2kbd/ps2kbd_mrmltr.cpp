@@ -267,7 +267,7 @@ uint8_t Ps2Kbd_Mrmltr::hidCodePage1(uint8_t ps2code) {
   }
 }
 
-// ff.h removed - FatFS logging disabled for murmapple
+// ff.h removed - FatFS logging disabled for FRANK Apple
 
 void Ps2Kbd_Mrmltr::handleActions() {
   /*

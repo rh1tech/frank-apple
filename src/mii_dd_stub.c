@@ -20,7 +20,7 @@
 #include "../drivers/psram_allocator.h"
 
 #if PICO_RP2350
-#define HDD_CACHE_BASE (PSRAM_DATA + BDSK_BYTES)
+#define HDD_CACHE_BASE (PSRAM_DATA + 2 * BDSK_BYTES)
 #endif
 
 void

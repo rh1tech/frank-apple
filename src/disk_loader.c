@@ -1,7 +1,7 @@
 /*
  * disk_loader.c
  * 
- * SD card disk image loader for murmapple
+ * SD card disk image loader for FRANK Apple
  */
 
 #include <stdio.h>
@@ -30,7 +30,14 @@ extern uint8_t vram[2 * RAM_PAGES_PER_POOL * RAM_PAGE_SIZE];
 disk_entry_t* g_disk_list = (disk_entry_t*)vram;//[MAX_DISK_IMAGES];
 
 #if PICO_RP2350
+// drive0_cache lives in PSRAM to save 228KB of SRAM.
+// PSRAM layout: [drive0 BDSK | drive1 BDSK | HDD cache | ...]
+// HDD_CACHE_BASE in mii_dd_stub.c starts at PSRAM_DATA + 2*BDSK_BYTES.
+#if PSRAM_MAX_FREQ_MHZ
+uint8_t *drive0_cache = PSRAM_DATA;
+#else
 uint8_t drive0_cache[BDSK_BYTES];
+#endif
 #endif
 
 int g_disk_count = 0;
@@ -187,8 +194,8 @@ disk_dump_current_track(
         memcpy(drive0_cache + track_offset, &desc, sizeof(desc));
         memcpy(drive0_cache + track_offset + sizeof(desc), floppy->curr_track_data, BDSK_TRACK_DATA_SIZE);
     } else if (butter_psram_size()) { // drive #1
-        memcpy(PSRAM_DATA + track_offset, &desc, sizeof(desc));
-        memcpy(PSRAM_DATA + track_offset + sizeof(desc), floppy->curr_track_data, BDSK_TRACK_DATA_SIZE);
+        memcpy(PSRAM_DATA + BDSK_BYTES + track_offset, &desc, sizeof(desc));
+        memcpy(PSRAM_DATA + BDSK_BYTES + track_offset + sizeof(desc), floppy->curr_track_data, BDSK_TRACK_DATA_SIZE);
     }
 #endif
 
@@ -457,8 +464,8 @@ disk_load_floppy_bdsk_track_from_fatfs(
         goto ok;
     }
     if (butter_psram_size()) { // drive #1
-        memcpy(&desc, PSRAM_DATA + track_offset, sizeof(bdsk_track_desc_t));
-        memcpy(floppy->curr_track_data, PSRAM_DATA + track_offset + sizeof(bdsk_track_desc_t), BDSK_TRACK_DATA_SIZE);
+        memcpy(&desc, PSRAM_DATA + BDSK_BYTES + track_offset, sizeof(bdsk_track_desc_t));
+        memcpy(floppy->curr_track_data, PSRAM_DATA + BDSK_BYTES + track_offset + sizeof(bdsk_track_desc_t), BDSK_TRACK_DATA_SIZE);
         goto ok;
     }
 #endif
@@ -503,17 +510,17 @@ static int disk_load_floppy_bdsk_from_fatfs(int drive, mii_floppy_t *floppy, mii
     UINT br;
 #if PICO_RP2350
     if (!drive) { // drive #0
-        fr = f_read(fp, drive0_cache, sizeof(drive0_cache), &br);
-        if (fr != FR_OK || br != sizeof(drive0_cache))
+        fr = f_read(fp, drive0_cache, BDSK_BYTES, &br);
+        if (fr != FR_OK || br != BDSK_BYTES)
             return -1;
         memcpy(&hdr, drive0_cache, sizeof hdr);
         goto ok;
     }
     if (butter_psram_size()) { // drive #1
-        fr = f_read(fp, PSRAM_DATA, sizeof(drive0_cache), &br);
-        if (fr != FR_OK || br != sizeof(drive0_cache))
+        fr = f_read(fp, PSRAM_DATA + BDSK_BYTES, BDSK_BYTES, &br);
+        if (fr != FR_OK || br != BDSK_BYTES)
             return -1;
-        memcpy(&hdr, PSRAM_DATA, sizeof hdr);
+        memcpy(&hdr, PSRAM_DATA + BDSK_BYTES, sizeof hdr);
         goto ok;
     }
 #endif

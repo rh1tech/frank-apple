@@ -1,7 +1,7 @@
 /*
  * mii_startscreen.c
  *
- * Start screen display for MurmApple before emulator initialization
+ * Start screen display for FRANK Apple before emulator initialization
  * Renders directly to HDMI framebuffer using same style as disk_ui
  * 
  * Developed by Mikhail Matveev, rh1.tech

@@ -1,7 +1,7 @@
 /*
  * mii_startscreen.h
  *
- * Start screen display for MurmApple before emulator initialization
+ * Start screen display for FRANK Apple before emulator initialization
  * Shows system information and waits for user input to proceed
  */
 

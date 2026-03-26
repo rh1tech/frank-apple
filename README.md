@@ -1,4 +1,4 @@
-# MurmApple
+# FRANK Apple
 
 Apple IIe Emulator for RP2040/RP2350 (Raspberry Pi Pico, Pico 2 or similar) with HDMI output, SD card, PS/2 and USB keyboard, and audio.
 
@@ -92,7 +92,7 @@ Two GPIO layouts are supported: **M1** and **M2**.
 
 ## Firmware Versions
 
-MurmApple is available in multiple configurations based on your hardware setup:
+FRANK Apple is available in multiple configurations based on your hardware setup:
 
 ### Video Output Options
 
@@ -116,19 +116,14 @@ MurmApple is available in multiple configurations based on your hardware setup:
 | **RP2350 no-PSRAM** | No | For boards without external PSRAM |
 | **RP2040** | No | Limited support, reduced functionality due to memory constraints |
 
-### Murmulator OS (MOS2)
-
-For use with Murmulator OS, `.m1p2` and `.m2p2` firmware files are provided. These use a special linker script and are only available for RP2350 with PSRAM.
-
 ### Firmware File Naming
 
-Files are named: `murmapple_<board>_<video>_<audio>_<memory>_<version>.<ext>`
+Files are named: `frank_apple_<board>_<video>_<audio>_<platform>_<version>.uf2`
 
 Examples:
-- `murmapple_m1_hdmi_i2s_psram_1_00.uf2` — M1 board, HDMI video, I2S audio, with PSRAM
-- `murmapple_m2_vga_pwm_nopsram_1_00.uf2` — M2 board, VGA video, PWM audio, no PSRAM
-- `murmapple_m1_hdmi_i2s_rp2040_1_00.uf2` — M1 board, HDMI video, I2S audio, RP2040
-- `murmapple_m1_hdmi_i2s_psram_1_00.m1p2` — M1 board, MOS2 format
+- `frank_apple_m1_hdmi_i2s_rp2350_1_00.uf2` — M1 board, HDMI video, I2S audio, RP2350
+- `frank_apple_m2_vga_pwm_rp2350_1_00.uf2` — M2 board, VGA video, PWM audio, RP2350
+- `frank_apple_m1_hdmi_i2s_rp2040_1_00.uf2` — M1 board, HDMI video, I2S audio, RP2040
 
 ## Building
 
@@ -138,14 +133,20 @@ Examples:
 2. Set environment variable: `export PICO_SDK_PATH=/path/to/pico-sdk`
 3. Install ARM GCC toolchain
 
+**pico-extras** (required for I2S audio):
+
+The [pico-extras](https://github.com/raspberrypi/pico-extras) library is included as a git submodule and provides the `pico_audio_i2s` library used for I2S audio output. It is fetched automatically when you clone with `--recursive` or run `git submodule update --init --recursive` (see below). No separate installation is needed.
+
+If you are building with PWM audio (`-DAUDIO_TYPE=PWM`), pico-extras is not required.
+
 ### Build Steps
 
 ```bash
-# Clone the repository with submodules
-git clone --recursive https://github.com/user/murmapple.git
-cd murmapple
+# Clone the repository with submodules (includes pico-extras)
+git clone --recursive https://github.com/rh1tech/frank-apple.git
+cd frank-apple
 
-# Or if already cloned, initialize submodules
+# Or if already cloned, initialize submodules (includes pico-extras)
 git submodule update --init --recursive
 
 # Build for M1 layout with PS/2 input (default)
@@ -174,7 +175,6 @@ make -j$(nproc)
 | `-DAUDIO_TYPE=I2S` | Audio output: I2S (default) or PWM |
 | `-DCPU_SPEED=252` | CPU clock in MHz (125, 252, 378, 504) |
 | `-DPSRAM_SPEED=100` | PSRAM clock in MHz (100, 133, 166) - omit for no PSRAM |
-| `-DMOS2=ON` | Build for Murmulator OS (m1p2/m2p2 format) |
 | `-DUSB_HID_ENABLED=OFF` | Enable USB keyboard (disables USB serial) |
 | `-DPS2_KEYBOARD_ENABLED=ON` | Enable PS/2 keyboard input |
 | `-DDEBUG_LOGS_ENABLED=ON` | Enable verbose debug logging |
@@ -191,7 +191,6 @@ The easiest way to build is using the build script:
 ./build.sh --board M2 --video VGA --audio PWM
 ./build.sh --nopsram                    # Build without PSRAM
 ./build.sh --rp2040                     # Build for RP2040
-./build.sh --mos2                       # Build for Murmulator OS
 ./build.sh --cpu 378                    # Overclock to 378 MHz
 ```
 
@@ -205,35 +204,18 @@ The easiest way to build is using the build script:
 | `-p, --psram <MHz>` | PSRAM speed in MHz (default: 100) |
 | `--nopsram` | Build without PSRAM support |
 | `-c, --cpu <MHz>` | CPU speed: 252, 378, 504 (default: 252) |
-| `--mos2` | Build for Murmulator OS |
 | `--rp2040` | Build for RP2040 instead of RP2350 |
 | `-h, --help` | Show help |
 
 ### Release Builds
 
-To build all 32 firmware variants with version numbering:
+To build all 12 firmware variants with version numbering:
 
 ```bash
-./release.sh
+./release.sh 1.04
 ```
 
-This creates versioned firmware files in the `release/` directory, packaged as ZIP archives:
-
-| Archive | Contents |
-|---------|----------|
-| `murmapple_m1_psram_X_XX.zip` | M1 board, RP2350 with PSRAM (4 variants: HDMI/VGA × I2S/PWM) |
-| `murmapple_m2_psram_X_XX.zip` | M2 board, RP2350 with PSRAM (4 variants) |
-| `murmapple_m1_nopsram_X_XX.zip` | M1 board, RP2350 without PSRAM (4 variants) |
-| `murmapple_m2_nopsram_X_XX.zip` | M2 board, RP2350 without PSRAM (4 variants) |
-| `murmapple_m1_rp2040_X_XX.zip` | M1 board, RP2040 (4 variants) |
-| `murmapple_m2_rp2040_X_XX.zip` | M2 board, RP2040 (4 variants) |
-| `murmapple_mos2_X_XX.zip` | Murmulator OS builds (.m1p2/.m2p2, 8 variants) |
-
-Each archive contains firmware for all video/audio combinations:
-- `*_hdmi_i2s_*.uf2` — HDMI video, I2S audio
-- `*_hdmi_pwm_*.uf2` — HDMI video, PWM audio
-- `*_vga_i2s_*.uf2` — VGA video, I2S audio
-- `*_vga_pwm_*.uf2` — VGA video, PWM audio
+The version can also be entered interactively if omitted. This creates versioned `.uf2` files in the `release/` directory for each combination of board (M1/M2), video (HDMI/VGA), audio (I2S/PWM), and platform (RP2350/RP2040).
 
 All release builds use 252 MHz CPU clock (no overclocking) for maximum stability.
 
@@ -241,10 +223,10 @@ All release builds use 252 MHz CPU clock (no overclocking) for maximum stability
 
 ```bash
 # With device in BOOTSEL mode:
-picotool load build/murmapple.uf2
+picotool load build/frank_apple.uf2
 
 # Or with device running:
-picotool load -f build/murmapple.uf2
+picotool load -f build/frank_apple.uf2
 
 # Or use the flash script:
 ./flash.sh
@@ -261,7 +243,7 @@ picotool load -f build/murmapple.uf2
 - **DSK** — Standard 140KB sector-based disk images
 - **NIB** — Nibble-based disk images (140KB)
 - **WOZ** — Flux-accurate disk images (WOZ v1 and v2)
-- **BDSK** — MurmApple write-back format (created automatically when saving changes)
+- **BDSK** — FRANK Apple write-back format (created automatically when saving changes)
 
 > **Note:** When you modify a disk (e.g., save a game), changes are written to a `.bdsk` file with the same name, preserving the original disk image.
 
@@ -326,11 +308,10 @@ This project is based on the following open-source projects:
 ## Authors & Contributors
 
 **Mikhail Matveev** <<xtreme@rh1.tech>>
-- Original MurmApple port and core development
+- Original FRANK Apple port and core development
 - Website: [https://rh1.tech](https://rh1.tech)
 
 **DnCraptor** ([GitHub](https://github.com/DnCraptor))
-- Murmulator OS (MOS2) integration
 - RP2040 platform support
 - VGA video output driver
 - No-PSRAM mode for boards without external PSRAM

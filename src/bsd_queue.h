@@ -2,7 +2,7 @@
  * bsd_queue.h - BSD Queue macros (subset needed for mii)
  * 
  * Based on FreeBSD sys/queue.h
- * Simplified for murmapple RP2350 port
+ * Simplified for FRANK Apple RP2350 port
  */
 #ifndef BSD_QUEUE_H_
 #define BSD_QUEUE_H_

@@ -1,7 +1,7 @@
 /*
  * disk_ui.c
  * 
- * Macintosh-style disk selector UI for murmapple
+ * Macintosh-style disk selector UI for FRANK Apple
  * Features inverted title bar, compact 6x8 font, proper selection highlighting
  */
 

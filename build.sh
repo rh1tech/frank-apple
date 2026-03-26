@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build murmapple - Apple IIe emulator for RP2350
+# Build FRANK Apple - Apple IIe emulator for RP2350
 #
 # Usage: ./build.sh [OPTIONS]
 #   -b, --board      Board variant: M1 (default) or M2
@@ -8,7 +8,6 @@
 #   -p, --psram      PSRAM speed in MHz (default: 100)
 #   --nopsram        Build without PSRAM support
 #   -c, --cpu        CPU speed in MHz: 252 (default), 378, 504
-#   --mos2           Build for Murmulator OS (m1p2/m2p2 format)
 #   --rp2040         Build for RP2040 instead of RP2350
 #   -h, --help       Show this help
 
@@ -18,7 +17,6 @@ VIDEO="HDMI"
 AUDIO="I2S"
 PSRAM="100"
 CPU="252"
-MOS2="OFF"
 PLATFORM="rp2350"
 PICO_BOARD="pico2"
 
@@ -49,10 +47,6 @@ while [[ $# -gt 0 ]]; do
             CPU="$2"
             shift 2
             ;;
-        --mos2)
-            MOS2="ON"
-            shift
-            ;;
         --rp2040)
             PLATFORM="rp2040"
             PICO_BOARD="pico"
@@ -81,18 +75,13 @@ if [[ -n "$PSRAM" ]]; then
     CMAKE_ARGS="$CMAKE_ARGS -DPSRAM_SPEED=$PSRAM"
 fi
 
-if [[ "$MOS2" == "ON" ]]; then
-    CMAKE_ARGS="$CMAKE_ARGS -DMOS2=ON"
-fi
-
-echo "Building murmapple:"
+echo "Building FRANK Apple:"
 echo "  Board: $BOARD"
 echo "  Video: $VIDEO"
 echo "  Audio: $AUDIO"
 echo "  CPU: $CPU MHz"
 echo "  PSRAM: ${PSRAM:-none}"
 echo "  Platform: $PLATFORM"
-echo "  MOS2: $MOS2"
 echo ""
 
 rm -rf ./build

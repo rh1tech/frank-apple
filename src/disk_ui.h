@@ -1,7 +1,7 @@
 /*
  * disk_ui.h
  * 
- * Simple text-based disk selector UI for murmapple
+ * Simple text-based disk selector UI for FRANK Apple
  */
 
 #ifndef DISK_UI_H

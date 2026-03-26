@@ -1,7 +1,7 @@
 /*
  * board_config.h
  * 
- * Board configuration for murmapple - Apple IIe emulator for RP2350
+ * Board configuration for FRANK Apple - Apple IIe emulator for RP2350
  * Based on murmdoom board configuration
  */
 #ifndef BOARD_CONFIG_H

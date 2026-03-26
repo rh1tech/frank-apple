@@ -1,7 +1,7 @@
 /*
  * disk_loader.h
  * 
- * SD card disk image loader for murmapple
+ * SD card disk image loader for FRANK Apple
  * Scans /apple directory on SD card and mounts disk images into the emulator
  * without staging the entire image in PSRAM.
  */

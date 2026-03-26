@@ -14,7 +14,7 @@ endif()
 # ====================================================================================
 cmake_minimum_required(VERSION 3.13)
 
-set(BUILD_NAME "murmapple")
+set(BUILD_NAME "frank_apple")
 
 set(BUILD_VERSION "RC24")
 
@@ -44,10 +44,6 @@ if(PICO_BOARD STREQUAL "pico2")
     set(PSRAM_SPEED "84" CACHE STRING "PSRAM max frequency in MHz: 84, 100, 133, 166")
 endif()
 
-# MOS2 support (generate .m1p2 or m2p2 for Murmulator OS instead of .uf2)
-option(MOS2 "Build for Murmulator OS (m1p2/m2p2 format)" OFF)
-#set(MOS2 ON)
-
 # CPU voltage selection based on speed
 if(CPU_SPEED GREATER_EQUAL 504)
     set(CPU_VOLTAGE "VREG_VOLTAGE_1_65")
@@ -76,7 +72,7 @@ option(PS2_KEYBOARD_ENABLED "Enable PS/2 keyboard input" ON)
 # Verbose debug logging toggle
 option(DEBUG_LOGS_ENABLED "Enable verbose debug logging" OFF)
 
-message(STATUS "murmapple - Apple IIe Emulator for RP2350")
+message(STATUS "FRANK Apple - Apple IIe Emulator for RP2350")
 if (PSRAM_SPEED)
     message(STATUS "Board: ${BOARD_VARIANT}, CPU: ${CPU_SPEED} MHz, PSRAM: ${PSRAM_SPEED} MHz, Voltage: ${CPU_VOLTAGE}")
 else ()
@@ -126,20 +122,6 @@ endif ()
 
 SET(BUILD_NAME "${BUILD_NAME}-${AUDIO_TYPE}-${BUILD_VERSION}")
 
-if (MOS2)
-    IF(BOARD_VARIANT STREQUAL "M2")
-        SET(BUILD_NAME "${BUILD_NAME}.m2p2")
-# TODO: support later
-#    ELSEIF(PICO_PC)
-#        SET(BUILD_NAME "${BUILD_NAME}.PCp2")
-#    ELSEIF(PICO_DV)
-#        SET(BUILD_NAME "${BUILD_NAME}.DVp2")
-#    ELSEIF(ZERO2)
-#        SET(BUILD_NAME "${BUILD_NAME}.z0p2")
-    ELSE()
-        SET(BUILD_NAME "${BUILD_NAME}.m1p2")
-    ENDIF()
-endif ()
 
 project(${BUILD_NAME} C CXX ASM)
 set(CMAKE_C_STANDARD 11)
@@ -232,15 +214,9 @@ if (PICO_BOARD STREQUAL "pico")
     pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
     target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
     pico_set_boot_stage2(${BUILD_NAME} slower_boot2)
-    unset(MOS2)
 else()
-    # RP2350: Use custom linker scripts
-    # MOS2 builds use memmap.mos2.ld, regular UF2 builds use memmap.ld
-    if (MOS2)
-        pico_set_linker_script(${PROJECT_NAME} "${CMAKE_SOURCE_DIR}/memmap.mos2.ld")
-    else()
-        pico_set_linker_script(${PROJECT_NAME} "${CMAKE_SOURCE_DIR}/memmap.ld")
-    endif()
+    # RP2350: Use custom linker script
+    pico_set_linker_script(${PROJECT_NAME} "${CMAKE_SOURCE_DIR}/memmap.ld")
 endif()
 
 target_link_libraries(drivers pico_stdlib hardware_dma hardware_pio hardware_spi hardware_pwm)
@@ -371,12 +347,3 @@ pico_enable_stdio_uart(${BUILD_NAME} 1)
 pico_add_extra_outputs(${BUILD_NAME})
 
 target_link_options(${BUILD_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections)
-
-# MOS2 support:
-if (MOS2)
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E rename
-        "${OUTPUT_DIR}/${BUILD_NAME}.uf2"
-        "${OUTPUT_DIR}/${BUILD_NAME}"
-    )
-endif ()
