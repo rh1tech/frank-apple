@@ -2,6 +2,17 @@
 
 Apple IIe Emulator for RP2040/RP2350 (Raspberry Pi Pico, Pico 2 or similar) with HDMI output, SD card, PS/2 and USB keyboard, and audio.
 
+## Screenshots
+
+<p align="center">
+  <img src="screenshots/screen1.png" width="45%" alt="FRANK Apple start screen" />
+  <img src="screenshots/screen2.png" width="45%" alt="Apple IIe boot" />
+</p>
+<p align="center">
+  <img src="screenshots/screen3.png" width="45%" alt="Disk selection UI" />
+  <img src="screenshots/screen4.png" width="45%" alt="Apple II software running" />
+</p>
+
 ## Supported Boards
 
 This firmware is designed for the following RP2350-based boards with integrated HDMI, SD card and PS/2 or USB HID:
