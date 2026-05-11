@@ -165,9 +165,11 @@ void init_spi(void)
 		SPI_MSB_FIRST /* order */
 	);
 	
-	/* Claim DMA channels for non-blocking SPI reads */
-	sd_dma_tx = dma_claim_unused_channel(true);
-	sd_dma_rx = dma_claim_unused_channel(true);
+	/* Claim DMA channels for non-blocking SPI reads (only once across retries) */
+	if (sd_dma_tx < 0)
+		sd_dma_tx = dma_claim_unused_channel(true);
+	if (sd_dma_rx < 0)
+		sd_dma_rx = dma_claim_unused_channel(true);
 #else
     gpio_set_dir(SDCARD_PIN_SPI0_SCK, GPIO_OUT);
     gpio_set_dir(SDCARD_PIN_SPI0_MISO, GPIO_OUT);
