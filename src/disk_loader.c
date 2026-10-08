@@ -13,6 +13,12 @@
 #include "pico/stdlib.h"
 #include "../drivers/psram_allocator.h"
 
+#if !PSRAM_MAX_FREQ_MHZ
+// No-PSRAM build: psram_allocator.c is not compiled in, so there is no
+// butter_psram_size(). Report "no PSRAM" so drive #1 always uses the SD card.
+#define butter_psram_size() 0u
+#endif
+
 // MII emulator headers
 #include "mii.h"
 #include "mii_dd.h"

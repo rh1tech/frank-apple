@@ -12,8 +12,18 @@
 #define HDMI_BASE_PIN (6)
 #endif
 
+#ifndef HDMI_PIN_RGB_notBGR
+#if defined(BOARD_Z2)
+// RP2350-PiZero: data pairs start at HDMI_BASE_PIN, clock pair is +6
+#define HDMI_PIN_RGB_notBGR (0)
+#define HDMI_PIN_invert_diffpairs (0)
+#define beginHDMI_PIN_data (HDMI_BASE_PIN)
+#define beginHDMI_PIN_clk (HDMI_BASE_PIN + 6)
+#else
 #define HDMI_PIN_RGB_notBGR (1)
 #define HDMI_PIN_invert_diffpairs (1)
+#endif
+#endif
 
 #ifndef HDMI_BASE_PIN
 #define HDMI_BASE_PIN (6)
@@ -69,6 +79,8 @@ void graphics_set_defer_irq_to_core1(bool defer);
 // Initialize the IRQ handler on the current core. Call from Core 1 after 
 // graphics_init() was called with defer mode enabled.
 void graphics_init_irq_on_this_core(void);
+// Hand the running HDMI DMA IRQ over to the calling core (core 1).
+void graphics_move_irq_to_this_core(void);
 // Rebind the HDMI DMA IRQ handler to the calling core.
 // Call from Core 1 to ensure HDMI keeps running when Core 0 is busy.
 void graphics_rebind_irq_to_current_core(void);

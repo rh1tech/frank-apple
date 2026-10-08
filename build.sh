@@ -2,7 +2,7 @@
 # Build FRANK Apple - Apple IIe emulator for RP2350
 #
 # Usage: ./build.sh [OPTIONS]
-#   -b, --board      Board variant: M1 (default) or M2
+#   -b, --board      Board variant: M1 (default), M2 or PC (PCp2)
 #   -v, --video      Video output: HDMI (default) or VGA
 #   -a, --audio      Audio output: I2S (default) or PWM
 #   -p, --psram      PSRAM speed in MHz (default: 100)

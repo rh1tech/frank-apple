@@ -16,6 +16,8 @@
  * 
  * BOARD_M1 - M1 GPIO layout
  * BOARD_M2 - M2 GPIO layout
+ * BOARD_PC - Olimex RP2040-PICO-PC with Pico 2 (PCp2) GPIO layout
+ * BOARD_Z2 - Waveshare RP2350-PiZero (z0p2) GPIO layout
  * 
  * PSRAM pin is auto-detected based on chip package:
  *   RP2350B: GPIO47 (for both M1 and M2)
@@ -33,7 +35,7 @@
  */
 
 // Default to M1 if no config specified
-#if !defined(BOARD_M1) && !defined(BOARD_M2)
+#if !defined(BOARD_M1) && !defined(BOARD_M2) && !defined(BOARD_PC) && !defined(BOARD_Z2)
 #define BOARD_M1
 #endif
 
@@ -56,6 +58,7 @@
 #ifdef BOARD_M1
 #define PSRAM_PIN_RP2350A 19
 #else
+/* M2 and Olimex PICO-PC route QSPI CS1 to GPIO8 on RP2350A. */
 #define PSRAM_PIN_RP2350A 8
 #endif
 
@@ -178,6 +181,106 @@ static inline uint get_psram_pin(void) {
 #define PSRAM_PIN_MISO 4
 
 #endif // BOARD_M2
+
+//=============================================================================
+// Olimex PICO-PC / PCp2 Layout Configuration
+//=============================================================================
+#ifdef BOARD_PC
+
+// HDMI/DVI: clock pair 12/13, data pairs 14..19.
+// The Olimex board has R/G TMDS lanes swapped relative to M1/M2; HDMI.c
+// handles that when PICO_PC is defined.
+#define HDMI_PIN_CLKN 12
+#define HDMI_PIN_CLKP 13
+#define HDMI_PIN_D0N  14
+#define HDMI_PIN_D0P  15
+#define HDMI_PIN_D1N  16
+#define HDMI_PIN_D1P  17
+#define HDMI_PIN_D2N  18
+#define HDMI_PIN_D2P  19
+#define HDMI_BASE_PIN HDMI_PIN_CLKN
+
+// On-board microSD (SPI0)
+#define SDCARD_PIN_CLK    6
+#define SDCARD_PIN_CMD    7
+#define SDCARD_PIN_D0     4
+#define SDCARD_PIN_D3     22
+
+// External PS/2 keyboard
+#define PS2_PIN_CLK  0
+#define PS2_PIN_DATA 1
+
+// UEXT1 NES/SNES gamepad
+#define NESPAD_GPIO_CLK   5
+#define NESPAD_GPIO_DATA  20
+#define NESPAD_GPIO_LATCH 9
+
+// Olimex analog stereo output. GPIO27 and GPIO28 are on different PWM slices.
+#define PWM_RIGHT_PIN 27
+#define PWM_LEFT_PIN  28
+
+#define PSRAM_SPINLOCK 1
+#define PSRAM_ASYNC 1
+
+#endif // BOARD_PC
+
+//=============================================================================
+// Waveshare RP2350-PiZero / z0p2 Layout Configuration
+//=============================================================================
+#ifdef BOARD_Z2
+
+// Shared ZERO2 code paths in HDMI.c (PIO GPIO base 16 for GPIO32..39)
+#define ZERO2 1
+
+// mini-HDMI on GPIO32..39: data pairs from 32, clock pair 38/39 (see HDMI.h).
+// HDMI runs on PIO0 with GPIO base 16; I2S has PIO1 to itself
+// (PICO_AUDIO_I2S_PIO=1 in CMakeLists.txt); PS/2 and NES use PIO2.
+// All PIOs except PIO0 keep GPIO base 0.
+#define HDMI_BASE_PIN 32
+#define PIO_VIDEO      pio0
+#define PIO_VIDEO_ADDR pio0
+// Clamp palette levels before TMDS encoding (see graphics_set_palette_hdmi)
+#define HDMI_TMDS_LEVEL_CLAMP 1
+// Serve the HDMI DMA IRQ on core 1 (see graphics_move_irq_to_this_core)
+#define HDMI_IRQ_ON_CORE1 1
+// DMA wins SRAM/AHB arbitration over the cores (see hdmi_init)
+#define HDMI_DMA_BUS_PRIORITY 1
+// Flash QSPI clock limit, as in the other z0p2 firmwares (MOS2, BK, murm386,
+// pico-speccy): 66 MHz gives SCK 63 MHz at 378 MHz. The default 88 MHz gives
+// 75.6 MHz SCK (3x the HDMI pixel clock), and on this board that shows up on
+// the HDMI lines as sparkles and lost sync.
+#define FLASH_MAX_FREQ_MHZ 66
+
+// On-board microSD on SPI1
+#define SDCARD_SPI_BUS    spi1
+#define SDCARD_PIN_CLK    30
+#define SDCARD_PIN_CMD    31
+#define SDCARD_PIN_D0     40
+#define SDCARD_PIN_D3     43
+
+// PS/2 keyboard (optional), as in MOS2 and murm386 for z0p2
+#define PS2_PIN_CLK  2
+#define PS2_PIN_DATA 3
+#define PS2_PIO      pio2
+
+// NES/SNES gamepad (optional), as in MOS2 for z0p2; joystick 2 data = GP8
+#define NESPAD_GPIO_CLK   4
+#define NESPAD_GPIO_DATA  7
+#define NESPAD_GPIO_LATCH 5
+#define NESPAD_PIO        pio2
+
+// External I2S DAC (PCM5102A): DIN=GP10, BCK=GP11, LRCK=GP12
+#define I2S_DATA_PIN       10
+#define I2S_CLOCK_PIN_BASE 11
+
+#define PSRAM_SPINLOCK 1
+#define PSRAM_ASYNC 1
+
+#endif // BOARD_Z2
+
+#ifndef PS2_PIO
+#define PS2_PIO pio0
+#endif
 
 //=============================================================================
 // Apple IIe Display Configuration

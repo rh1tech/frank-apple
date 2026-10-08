@@ -165,7 +165,9 @@ extern bool ps2kbd_is_reset_combo(void);  // Ctrl+Alt+Delete pressed
 
 #if PICO_RP2350
 // Flash timing configuration for overclocking
+#ifndef FLASH_MAX_FREQ_MHZ
 #define FLASH_MAX_FREQ_MHZ 88
+#endif
 
 static void __no_inline_not_in_flash_func(set_flash_timings)(int cpu_mhz) {
     const int clock_hz = cpu_mhz * 1000000;
@@ -361,6 +363,10 @@ static __not_in_flash() void video_core_iteration(void) {
 // Core 1 - Video rendering loop
 static __not_in_flash() void core1_main(void) {
     MII_DEBUG_PRINTF("Core 1: Waiting for emulator ready...\n");
+#if HDMI_IRQ_ON_CORE1
+    // Take the HDMI line IRQ away from core 0 (emulator, USB host, SD, audio)
+    graphics_move_irq_to_this_core();
+#endif
     
     // Wait for Core 0 to finish initialization
     while (!g_emulator_ready) {
@@ -564,10 +570,16 @@ int main() {
 #ifdef BOARD_M2
     board_num_early = 2;
 #endif
+#ifdef BOARD_PC
+    board_num_early = 3;
+#endif
+#ifdef BOARD_Z2
+    board_num_early = 4;
+#endif
     mii_startscreen_info_t screen_info_early = {
         .title = "FRANK Apple",
         .subtitle = "Apple IIe Emulator",
-        .version = "v1.00",
+        .version = "v1.05",
         .cpu_mhz = CPU_CLOCK_MHZ,
 #if PSRAM_MAX_FREQ_MHZ
         .psram_mhz = PSRAM_MAX_FREQ_MHZ,
@@ -708,6 +720,12 @@ int main() {
 #ifdef BOARD_M2
     board_num = 2;
 #endif
+#ifdef BOARD_PC
+    board_num = 3;
+#endif
+#ifdef BOARD_Z2
+    board_num = 4;
+#endif
 
 #if PSRAM_MAX_FREQ_MHZ
     uint32_t bs = butter_psram_size();
@@ -715,7 +733,7 @@ int main() {
     mii_startscreen_info_t screen_info = {
         .title = "FRANK Apple",
         .subtitle = "Apple IIe Emulator",
-        .version = "v1.00",
+        .version = "v1.05",
         .cpu_mhz = CPU_CLOCK_MHZ,
 #if PSRAM_MAX_FREQ_MHZ
         .psram_mhz = PSRAM_MAX_FREQ_MHZ,
@@ -803,6 +821,13 @@ int main() {
         
         // Check for Ctrl+Alt+Delete reset combo
         static bool reset_combo_active = false;
+        // Ctrl and Alt are also mapped to joystick buttons A/B, i.e. to
+        // Open Apple / Closed Apple ($C061/$C062). If they are still held
+        // while the ROM runs its reset handler, the IIe sees
+        // Ctrl+Open Apple+Closed Apple+Reset and starts the built-in
+        // self-test ("System OK") instead of booting. Keep both Apple
+        // buttons released until Ctrl/Alt are let go after Ctrl+Alt+Del.
+        static bool suppress_apple_buttons = false;
         bool reset_combo = false;
     #if ENABLE_PS2_KEYBOARD
         reset_combo |= ps2kbd_is_reset_combo();
@@ -814,6 +839,7 @@ int main() {
             if (!reset_combo_active) {
                 reset_combo_active = true;
                 MII_DEBUG_PRINTF("Reset combo detected (Ctrl+Alt+Delete)\n");
+                suppress_apple_buttons = true;
                 mii_reset(&g_mii, true);
             }
         } else {
@@ -939,6 +965,12 @@ int main() {
 #ifdef USB_HID_ENABLED
             mods |= usbhid_wrapper_get_modifiers();
 #endif
+            if (suppress_apple_buttons) {
+                if (mods & 0x55)  // L/R Ctrl (0x11) or L/R Alt (0x44) still held
+                    combined_gamepad_state &= ~(DPAD_A | DPAD_B);
+                else
+                    suppress_apple_buttons = false;
+            }
             uint8_t btn0 = (combined_gamepad_state & DPAD_A) ? 0x80 : 0x00;
             uint8_t btn1 = (combined_gamepad_state & DPAD_B) ? 0x80 : 0x00;
             uint8_t btn2 = (combined_gamepad_state & DPAD_START) ? 0x80 : 0x00;

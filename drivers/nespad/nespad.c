@@ -1,4 +1,5 @@
 #include "nespad.h"
+#include "board_config.h"
 #include "hardware/pio.h"
 #include "hardware/gpio.h"
 #include <stdio.h>
@@ -31,7 +32,10 @@ static inline pio_sm_config nespad_program_get_default_config(uint offset) {
     return c;
 }
 
-static PIO pio = pio1;
+#ifndef NESPAD_PIO
+#define NESPAD_PIO pio1
+#endif
+static PIO pio = NESPAD_PIO;
 static uint8_t sm = -1;
 uint32_t nespad_state = 0;  // Joystick 1
 uint32_t nespad_state2 = 0; // Joystick 2

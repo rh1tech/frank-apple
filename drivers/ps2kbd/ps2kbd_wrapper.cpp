@@ -232,7 +232,7 @@ static Ps2Kbd_Mrmltr* kbd = nullptr;
 
 void ps2kbd_init(void) {
     // Ps2Kbd_Mrmltr constructor takes (pio, gpio, keyHandler)
-    static Ps2Kbd_Mrmltr kbd_instance(pio0, PS2_PIN_CLK, key_handler);
+    static Ps2Kbd_Mrmltr kbd_instance(PS2_PIO, PS2_PIN_CLK, key_handler);
     kbd = &kbd_instance;
     kbd->init_gpio();
 }

@@ -124,6 +124,10 @@ static struct audio_buffer_format producer_format = {
 };
 #endif
 #if defined(FEATURE_AUDIO_PWM)
+#ifdef PICO_PC
+static uint g_pwm_slice_right = 0;
+static uint g_pwm_slice_left = 0;
+#else
 static int g_pwm_dma_chan = -1;
 static uint g_pwm_slice = 0;
 
@@ -131,6 +135,7 @@ static uint g_pwm_slice = 0;
 static uint32_t *g_pwm_dma_buf = NULL;
 static uint32_t g_pwm_dma_count = 0;
 static bool g_pwm_dma_active = false;
+#endif
 #endif
 
 //=============================================================================
@@ -147,21 +152,30 @@ bool mii_audio_i2s_init(void)
     memset(&audio_state, 0, sizeof(audio_state));
     
 #if defined(FEATURE_AUDIO_PWM)
-    // PWM pins must be adjacent for single-slice stereo via CC
     gpio_set_function(PWM_RIGHT_PIN, GPIO_FUNC_PWM);
     gpio_set_function(PWM_LEFT_PIN,  GPIO_FUNC_PWM);
 
-    // Both pins (10/11) share the same slice
-    g_pwm_slice = pwm_gpio_to_slice_num(PWM_RIGHT_PIN);
     pwm_config pcfg = pwm_get_default_config();
     pwm_config_set_clkdiv(&pcfg, 1.0f);
     pwm_config_set_wrap(&pcfg, PWM_WRAP);
+
+#ifdef PICO_PC
+    /* GP27 and GP28 belong to different PWM slices on PCp2. */
+    g_pwm_slice_right = pwm_gpio_to_slice_num(PWM_RIGHT_PIN);
+    g_pwm_slice_left = pwm_gpio_to_slice_num(PWM_LEFT_PIN);
+    pwm_init(g_pwm_slice_right, &pcfg, true);
+    pwm_init(g_pwm_slice_left, &pcfg, true);
+#else
+    // M1/M2 stereo pins share one slice, so DMA can update A/B together.
+    g_pwm_slice = pwm_gpio_to_slice_num(PWM_RIGHT_PIN);
     pwm_init(g_pwm_slice, &pcfg, true);
+#endif
 
     // init duty to mid
     pwm_set_gpio_level(PWM_RIGHT_PIN, PWM_WRAP >> 1);
     pwm_set_gpio_level(PWM_LEFT_PIN,  PWM_WRAP >> 1);
 
+#ifndef PICO_PC
     // Allocate DMA buffer sized to ONE audio buffer worth of frames
     static uint32_t dma_buf[PWM_DMA_SAMPLES];
     g_pwm_dma_count = PWM_DMA_SAMPLES;
@@ -184,6 +198,7 @@ bool mii_audio_i2s_init(void)
         g_pwm_dma_count,
         false
     );
+#endif
 #endif
 #if defined(FEATURE_AUDIO_I2S)
     // Create audio buffer pool
@@ -374,11 +389,17 @@ static inline uint16_t pcm16_to_pwm_u16(int16_t s) {
 
 static void pwm_submit_one_sample(int16_t l, int16_t r)
 {
+    uint16_t pl = pcm16_to_pwm_u16(l);
+    uint16_t pr = pcm16_to_pwm_u16(r);
+
+#ifdef PICO_PC
+    /* PCp2 L/R are on separate slices; update each channel directly. */
+    pwm_set_gpio_level(PWM_LEFT_PIN, pl);
+    pwm_set_gpio_level(PWM_RIGHT_PIN, pr);
+#else
     if (g_pwm_dma_active && dma_channel_is_busy(g_pwm_dma_chan))
         return;
 
-    uint16_t pl = pcm16_to_pwm_u16(l);
-    uint16_t pr = pcm16_to_pwm_u16(r);
     uint32_t v = ((uint32_t)pr << 16) | pl;
 
     for (uint32_t i = 0; i < PWM_OSR; i++) {
@@ -392,6 +413,7 @@ static void pwm_submit_one_sample(int16_t l, int16_t r)
     );
 
     g_pwm_dma_active = true;
+#endif
 }
 #endif
 

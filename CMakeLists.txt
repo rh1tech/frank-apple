@@ -16,18 +16,26 @@ cmake_minimum_required(VERSION 3.13)
 
 set(BUILD_NAME "frank_apple")
 
-set(BUILD_VERSION "RC24")
+set(BUILD_VERSION "1.05")
 
 # Set board to Pico 2 (RP2350)
 set(PICO_BOARD pico2 CACHE STRING "Board type")
 
-# Board configuration variant (M1, M2)
-set(BOARD_VARIANT "M1" CACHE STRING "Board variant: M1 or M2")
+# Board configuration variant (M1, M2, PC, Z2)
+set(BOARD_VARIANT "Z2" CACHE STRING "Board variant: M1, M2, PC or Z2")
+
+if(BOARD_VARIANT STREQUAL "Z2")
+    # Waveshare RP2350-PiZero: RP2350B (48 GPIOs). The stock pico2 board header
+    # declares RP2350A, which caps GPIOs at 0..29 and disables the PIO GPIO base,
+    # so HDMI on GPIO32..39 and microSD on GPIO30..43 would not work.
+    set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/boards CACHE PATH "" FORCE)
+    set(PICO_BOARD waveshare_rp2350_pizero CACHE STRING "Board type" FORCE)
+endif()
 
 # CPU overclock configuration (252, 378, 504 MHz)
 set(CPU_SPEED "378" CACHE STRING "CPU clock in MHz: 252, 378, 504")
 
-set(VIDEO_TYPE "VGA" CACHE STRING "Video output: HDMI or VGA")
+set(VIDEO_TYPE "HDMI" CACHE STRING "Video output: HDMI or VGA")
 
 if(VIDEO_TYPE STREQUAL "HDMI")
     set(VIDEO_HDMI ON)
@@ -36,7 +44,7 @@ elseif(VIDEO_TYPE STREQUAL "VGA")
 endif()
 
 # Audio output configuration (I2S, PWM or PWME)
-set(AUDIO_TYPE "PWM" CACHE STRING "Audio output: I2S, PWM or PWME")
+set(AUDIO_TYPE "I2S" CACHE STRING "Audio output: I2S, PWM or PWME")
 
 # PSRAM speed configuration (84, 100, 133, 166 MHz target)
 # Leave unset for no-PSRAM builds
@@ -54,12 +62,34 @@ else()
 endif()
 
 # I2S Audio pin configuration based on board variant
+# PIO/SM for I2S: HDMI uses PIO1, PS/2 uses PIO0 SM0 on M1/M2/PC,
+# so I2S takes PIO0 SM2. On Z2 HDMI takes PIO0 (GPIO base 16) and
+# I2S gets PIO1 to itself (pico-extras audio_i2s accepts only PIO0/PIO1);
+# PS/2 and the NES gamepad move to PIO2.
+set(I2S_PIO "0")
+set(I2S_SM "2")
 if(BOARD_VARIANT STREQUAL "M1")
     set(I2S_DATA_PIN "26")
     set(I2S_CLOCK_PIN_BASE "27")
-else()  # M2
+elseif(BOARD_VARIANT STREQUAL "M2")
     set(I2S_DATA_PIN "9")
     set(I2S_CLOCK_PIN_BASE "10")
+elseif(BOARD_VARIANT STREQUAL "PC")
+    # PCp2 adaptation currently uses the board's analog PWM L/R output.
+    if(NOT AUDIO_TYPE STREQUAL "PWM")
+        message(FATAL_ERROR "BOARD_VARIANT=PC currently supports AUDIO_TYPE=PWM only")
+    endif()
+elseif(BOARD_VARIANT STREQUAL "Z2")
+    # External PCM5102A I2S DAC: DIN=GP10, BCK=GP11, LRCK=GP12 (as murm386 BOARD_Z2)
+    if(NOT AUDIO_TYPE STREQUAL "I2S")
+        message(FATAL_ERROR "BOARD_VARIANT=Z2 supports AUDIO_TYPE=I2S only (the board has no analog output)")
+    endif()
+    set(I2S_DATA_PIN "10")
+    set(I2S_CLOCK_PIN_BASE "11")
+    set(I2S_PIO "1")
+    set(I2S_SM "0")
+else()
+    message(FATAL_ERROR "Unknown BOARD_VARIANT=${BOARD_VARIANT}; expected M1, M2, PC or Z2")
 endif()
 
 # USB HID Host support (keyboard and gamepad via USB)
@@ -91,7 +121,14 @@ endif()
 set(OUTPUT_DIR "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
-IF(BOARD_VARIANT STREQUAL "M2")
+IF(BOARD_VARIANT STREQUAL "PC")
+    if (NOT PICO_BOARD STREQUAL "pico2")
+        message(FATAL_ERROR "BOARD_VARIANT=PC is the PCp2 target and requires PICO_BOARD=pico2")
+    endif()
+    SET(BUILD_NAME "PCp2-${BUILD_NAME}")
+ELSEIF(BOARD_VARIANT STREQUAL "Z2")
+    SET(BUILD_NAME "z0p2-${BUILD_NAME}")
+ELSEIF(BOARD_VARIANT STREQUAL "M2")
     if (PICO_BOARD STREQUAL "pico")
         SET(BUILD_NAME "m2p1-${BUILD_NAME}")
     else()
@@ -166,6 +203,7 @@ add_library(drivers ${DRIVER_SOURCES})
 target_include_directories(drivers PUBLIC drivers drivers/nespad src)
 target_compile_definitions(drivers PRIVATE
     BOARD_${BOARD_VARIANT}
+    $<$<STREQUAL:${BOARD_VARIANT},PC>:PICO_PC=1>
 )
 
 if (PSRAM_SPEED)
@@ -228,6 +266,7 @@ target_include_directories(${BUILD_NAME} PRIVATE
 
 target_compile_definitions(${BUILD_NAME} PRIVATE
     BOARD_${BOARD_VARIANT}
+    $<$<STREQUAL:${BOARD_VARIANT},PC>:PICO_PC=1>
     CPU_CLOCK_MHZ=${CPU_SPEED}
     CPU_VOLTAGE=${CPU_VOLTAGE}
     MII_65C02_DIRECT_ACCESS=1
@@ -235,8 +274,8 @@ target_compile_definitions(${BUILD_NAME} PRIVATE
     # I2S Audio configuration
     # NOTE: HDMI uses PIO1, PS/2 uses PIO0 SM0 (claimed dynamically)
     # So I2S uses PIO0 SM2 (claimed statically before PS/2 init)
-    PICO_AUDIO_I2S_PIO=0
-    PICO_AUDIO_I2S_STATE_MACHINE=2
+    PICO_AUDIO_I2S_PIO=${I2S_PIO}
+    PICO_AUDIO_I2S_STATE_MACHINE=${I2S_SM}
     PICO_AUDIO_I2S_DMA_IRQ=1
     PICO_AUDIO_I2S_DMA_CHANNEL=10
     PICO_AUDIO_I2S_DATA_PIN=${I2S_DATA_PIN}
@@ -257,8 +296,8 @@ if(AUDIO_TYPE STREQUAL "I2S")
         # I2S Audio configuration
         # NOTE: HDMI uses PIO1, PS/2 uses PIO0 SM0 (claimed dynamically)
         # So I2S uses PIO0 SM2 (claimed statically before PS/2 init)
-        PICO_AUDIO_I2S_PIO=0
-        PICO_AUDIO_I2S_STATE_MACHINE=2
+        PICO_AUDIO_I2S_PIO=${I2S_PIO}
+        PICO_AUDIO_I2S_STATE_MACHINE=${I2S_SM}
         PICO_AUDIO_I2S_DMA_IRQ=1
         PICO_AUDIO_I2S_DMA_CHANNEL=10
         PICO_AUDIO_I2S_DATA_PIN=${I2S_DATA_PIN}

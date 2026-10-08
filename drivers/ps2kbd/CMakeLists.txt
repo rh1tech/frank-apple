@@ -12,6 +12,8 @@ target_link_libraries(ps2kbd PRIVATE hardware_pio hardware_clocks)
 # Add board variant define and KBD_CLOCK_PIN for PIO program selection
 if(BOARD_VARIANT STREQUAL "M2")
     target_compile_definitions(ps2kbd PRIVATE BOARD_M2 KBD_CLOCK_PIN=2)
+elseif(BOARD_VARIANT STREQUAL "Z2")
+    target_compile_definitions(ps2kbd PRIVATE BOARD_Z2 KBD_CLOCK_PIN=2)
 else()
     target_compile_definitions(ps2kbd PRIVATE BOARD_M1 KBD_CLOCK_PIN=0)
 endif()

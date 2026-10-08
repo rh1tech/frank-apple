@@ -11,6 +11,7 @@
 #include "pico/multicore.h"
 #include "hardware/clocks.h"
 #include "hardware/irq.h"
+#include "hardware/structs/bus_ctrl.h"
 #include "pico/platform.h"
 #include "disk_ui.h"
 
@@ -288,11 +289,36 @@ static void pio_set_x(PIO pio, const int sm, uint32_t v) {
     pio_sm_exec(pio, sm, instr_mov);
 }
 
+// Core whose NVIC has the HDMI DMA IRQ enabled (-1 - none yet).
+// The IRQ starts on the core that calls graphics_init() (core 0) and can be
+// handed over to core 1 with graphics_move_irq_to_this_core(), away from
+// USB host, SD card, audio and emulator work on core 0.
+static volatile int8_t hdmi_irq_core = -1;
+static volatile bool hdmi_irq_handoff = false;   // core 1 asks core 0 to let go
+static volatile bool hdmi_irq_released = false;  // core 0 has disabled the IRQ
+
+// Word fill for the line buffer: memset() lives in flash, and an XIP cache
+// miss inside this IRQ can make the line buffer late (snow, lost sync).
+// All offsets and lengths used below are multiples of 4.
+static inline __attribute__((always_inline)) void hdmi_fill(uint8_t* p, uint8_t v, uint32_t n) {
+    uint32_t w = v * 0x01010101u;
+    volatile uint32_t* q = (volatile uint32_t*)p; // volatile: keep GCC from turning the loop back into memset()
+    for (n >>= 2; n; --n) *q++ = w;
+}
+
 static void __scratch_x() dma_handler_HDMI() {
     static uint32_t inx_buf_dma;
     static uint line = 0;
     struct video_mode_t mode = video_mode[0];
     irq_inx++;
+
+    if (hdmi_irq_handoff && get_core_num() == 0) {
+        // Hand the IRQ over to core 1: disable it in this core's NVIC only
+        // (direct register write - no flash code inside the IRQ).
+        nvic_hw->icer[VIDEO_DMA_IRQ / 32] = 1u << (VIDEO_DMA_IRQ % 32);
+        hdmi_irq_handoff = false;
+        hdmi_irq_released = true;
+    }
 
     dma_hw->ints0 = 1u << dma_chan_ctrl;
     dma_channel_set_read_addr(dma_chan_ctrl, &DMA_BUF_ADDR[inx_buf_dma & 1], false);
@@ -328,9 +354,9 @@ static void __scratch_x() dma_handler_HDMI() {
 
         // --|_|---|_|---|_|----
         //---|___________|-----
-        memset(activ_buf + 48,BASE_HDMI_CTRL_INX, 24);
-        memset(activ_buf,BASE_HDMI_CTRL_INX + 1, 48);
-        memset(activ_buf + 392,BASE_HDMI_CTRL_INX, 8);
+        hdmi_fill(activ_buf + 48,BASE_HDMI_CTRL_INX, 24);
+        hdmi_fill(activ_buf,BASE_HDMI_CTRL_INX + 1, 48);
+        hdmi_fill(activ_buf + 392,BASE_HDMI_CTRL_INX, 8);
 
         //без выравнивания
         // --|_|---|_|---|_|----
@@ -345,8 +371,8 @@ static void __scratch_x() dma_handler_HDMI() {
             //для выравнивания синхры
             // --|_|---|_|---|_|----
             //---|___________|-----
-            memset(activ_buf + 48,BASE_HDMI_CTRL_INX + 2, 352);
-            memset(activ_buf,BASE_HDMI_CTRL_INX + 3, 48);
+            hdmi_fill(activ_buf + 48,BASE_HDMI_CTRL_INX + 2, 352);
+            hdmi_fill(activ_buf,BASE_HDMI_CTRL_INX + 3, 48);
             //без выравнивания
             // --|_|---|_|---|_|----
             //-------|___________|----
@@ -359,8 +385,8 @@ static void __scratch_x() dma_handler_HDMI() {
             //ССИ без изображения
             //для выравнивания синхры
 
-            memset(activ_buf + 48,BASE_HDMI_CTRL_INX, 352);
-            memset(activ_buf,BASE_HDMI_CTRL_INX + 1, 48);
+            hdmi_fill(activ_buf + 48,BASE_HDMI_CTRL_INX, 352);
+            hdmi_fill(activ_buf,BASE_HDMI_CTRL_INX + 1, 48);
 
             // memset(activ_buf,BASE_HDMI_CTRL_INX,328);
             // memset(activ_buf+328,BASE_HDMI_CTRL_INX+1,48);
@@ -381,6 +407,25 @@ static inline void irq_remove_handler_DMA_core1() {
 
 static inline void irq_set_exclusive_handler_DMA_core1() {
     irq_set_exclusive_handler(VIDEO_DMA_IRQ, dma_handler_HDMI);
+    irq_set_priority(VIDEO_DMA_IRQ, 0);
+    // Enable only on the owning core: after a handover to core 1 a restart
+    // from core 0 (hdmi_check_and_restart) must not enable it on core 0 too.
+    if (hdmi_irq_core < 0 || hdmi_irq_core == (int8_t)get_core_num()) {
+        irq_set_enabled(VIDEO_DMA_IRQ, true);
+        hdmi_irq_core = (int8_t)get_core_num();
+    }
+}
+
+// Move the HDMI DMA IRQ to the calling core (call from core 1 once it runs).
+// Core 0 disables it inside the next HDMI IRQ, so it is never enabled on both
+// cores and never left unserviced for more than one line.
+void graphics_move_irq_to_this_core(void) {
+    int8_t me = (int8_t)get_core_num();
+    if (hdmi_irq_core == me || hdmi_irq_core < 0) return;
+    hdmi_irq_released = false;
+    hdmi_irq_handoff = true;
+    while (!hdmi_irq_released) tight_loop_contents();
+    hdmi_irq_core = me;
     irq_set_priority(VIDEO_DMA_IRQ, 0);
     irq_set_enabled(VIDEO_DMA_IRQ, true);
 }
@@ -486,7 +531,7 @@ static inline bool hdmi_init() {
     pio_sm_set_consecutive_pindirs(PIO_VIDEO, SM_video, HDMI_BASE_PIN, 8, true);
     pio_sm_set_consecutive_pindirs(PIO_VIDEO_ADDR, SM_conv, HDMI_BASE_PIN, 8, true);
 
-    uint64_t mask64 = (uint64_t)(3u << beginHDMI_PIN_clk);
+    uint64_t mask64 = (uint64_t)3u << beginHDMI_PIN_clk; // 64-bit shift: clock pins are above GPIO31
     pio_sm_set_pins_with_mask64(PIO_VIDEO, SM_video, mask64, mask64);
     pio_sm_set_pindirs_with_mask64(PIO_VIDEO, SM_video, mask64, mask64);
     // пины
@@ -624,6 +669,17 @@ static inline bool hdmi_init() {
 
     irq_set_exclusive_handler_DMA_core1();
 
+#if HDMI_DMA_BUS_PRIORITY
+    // Give the DMA read and write masters priority over both cores at the
+    // SRAM/AHB arbiter (as in pico-speccy). The palette converter feeds the
+    // TMDS serializer through an 8-word FIFO - about 4 HDMI pixels. When a busy
+    // core wins arbitration against the converter DMA, the FIFO runs dry and
+    // the PIO stalls together with the TMDS clock it generates: a short stall
+    // gives snow, a longer one loses sync. The video DMA moves single words, so
+    // the cores lose only a few cycles.
+    bus_ctrl_hw->priority = BUSCTRL_BUS_PRIORITY_DMA_R_BITS | BUSCTRL_BUS_PRIORITY_DMA_W_BITS;
+#endif
+
     dma_start_channel_mask((1u << dma_chan_ctrl));
 
     return true;
@@ -663,9 +719,22 @@ void graphics_set_palette_hdmi(uint8_t i, uint32_t color888) {
     }
 
     uint64_t* conv_color64 = (uint64_t *)conv_color;
-    const uint8_t R = (color888 >> 16) & 0xff;
-    const uint8_t G = (color888 >> 8) & 0xff;
-    const uint8_t B = (color888 >> 0) & 0xff;
+    uint8_t R = (color888 >> 16) & 0xff;
+    uint8_t G = (color888 >> 8) & 0xff;
+    uint8_t B = (color888 >> 0) & 0xff;
+#if HDMI_TMDS_LEVEL_CLAMP
+    // TMDS level clamp, as in pico-speccy (HDMI_TMDS_LEVEL_CLAMP): channel values
+    // near 0x00 and 0xFF give the worst symbol pairs for this encoder - longest
+    // runs of identical bits and largest disparity swing. Black and white are
+    // most of an Apple II screen. Clamping to [0x08..0xF6] costs ~3-4% of black
+    // and white level and keeps a marginal link (z0p2 at 378 MHz, PIO divider
+    // 1.5) free of snow and lost sync.
+    #define HDMI_CLAMP_LO 0x08
+    #define HDMI_CLAMP_HI 0xF6
+    if (R < HDMI_CLAMP_LO) R = HDMI_CLAMP_LO; else if (R > HDMI_CLAMP_HI) R = HDMI_CLAMP_HI;
+    if (G < HDMI_CLAMP_LO) G = HDMI_CLAMP_LO; else if (G > HDMI_CLAMP_HI) G = HDMI_CLAMP_HI;
+    if (B < HDMI_CLAMP_LO) B = HDMI_CLAMP_LO; else if (B > HDMI_CLAMP_HI) B = HDMI_CLAMP_HI;
+#endif
     conv_color64[i * 2] = get_ser_diff_data(tmds_encoder(R), tmds_encoder(G), tmds_encoder(B));
     conv_color64[i * 2 + 1] = conv_color64[i * 2] ^ 0x0003ffffffffffffl;
 };

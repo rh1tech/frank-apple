@@ -291,7 +291,13 @@ int mii_startscreen_show(mii_startscreen_info_t *info) {
     }
 #endif
 
-    snprintf(line, sizeof(line), "Board: M%d", info->board_variant);
+    if (info->board_variant == 3) {
+        snprintf(line, sizeof(line), "Board: Olimex PICO-PC");
+    } else if (info->board_variant == 4) {
+        snprintf(line, sizeof(line), "Board: Waveshare RP2350-PiZero");
+    } else {
+        snprintf(line, sizeof(line), "Board: M%d", info->board_variant);
+    }
     draw_centered_string(buffer, screen_w, content_y, line, COLOR_TEXT);
 
     // Draw copyright at bottom of window
